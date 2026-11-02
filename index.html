@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuidado de Papá</title>
+    <style>
+        :root {
+            --bg: #f8fafc;
+            --primary: #1e293b;
+            --accent: #0284c7;
+            --libre-bg: #fef9c3;
+            --libre-text: #713f12;
+            --cubierto-bg: #dcfce7;
+            --cubierto-text: #14532d;
+        }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--primary);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container { width: 100%; max-width: 950px; }
+        h1 { text-align: center; margin-bottom: 5px; font-size: 24px; }
+        .timestamp {
+            text-align: center;
+            font-size: 13px;
+            color: #64748b;
+            font-weight: 500;
+            margin-bottom: 20px;
+            background: #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+        .text-center-wrapper { text-align: center; }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .form-group { display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        select { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: white; }
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+        button:hover { background-color: #0369a1; }
+        button:disabled { background-color: #94a3b8; cursor: not-allowed; }
+        .table-responsive { overflow-x: auto; width: 100%; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        th, td { border: 1px solid #e2e8f0; padding: 12px; text-align: center; font-size: 13px; }
+        th { background-color: var(--primary); color: white; min-width: 100px; }
+        .turno-header { font-weight: bold; background-color: #f1f5f9; min-width: 150px; }
+        .estado { padding: 6px 10px; border-radius: 20px; font-weight: bold; display: block; }
+        .libre { background-color: var(--libre-bg); color: var(--libre-text); }
+        .cubierto { background-color: var(--cubierto-bg); color: var(--cubierto-text); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🗓️ Turnos para el Cuidado de Papá</h1>
+    <div class="text-center-wrapper">
+        <div class="timestamp" id="updateTime">Estableciendo comunicación...</div>
+    </div>
+
+    <div class="card">
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="fecha">Selecciona el Día</label>
+                <select id="fecha"></select>
+            </div>
+            <div class="form-group">
+                <label for="horario">Selecciona tu Horario</label>
+                <select id="horario">
+                    <option value="Mañana">☀️ 8:00 AM - 2:00 PM</option>
+                    <option value="Tarde">⛅ 2:00 PM - 8:00 PM</option>
+                    <option value="Noche">🌙 8:00 PM - 8:00 AM</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="personal">Tu Nombre</label>
+                <select id="personal">
+                    <option value="">-- Selecciona quién eres --</option>
+                    <option value="Elear">Elear</option>
+                    <option value="Marleni">Marleni</option>
+                    <option value="David">David</option>
+                    <option value="Gaby">Gaby</option>
+                    <option value="Juan Jose">Juan Jose</option>
+                    <option value="Janet">Janet</option>
+                    <option value="Henry">Henry</option>
+                </select>
+            </div>
+        </div>
+        <button id="btnConfirmar" onclick="enviarDatos()">Confirmar / Cambiar Turno</button>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr id="tablaHeaders">
+                        <th>Turno / Horario</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr id="filaManana"><td class="turno-header">☀️ 8am - 2pm</td></tr>
+                    <tr id="filaTarde"><td class="turno-header">⛅ 2pm - 8pm</td></tr>
+                    <tr id="filaNoche"><td class="turno-header">🌙 8pm - 8am</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // CONFIGURACIÓN DE TU BASE DE DATOS PROPIA
+    const BIN_ID = "6ae817f9ffd5d160539e9260";
+    const MASTER_KEY = "$2a$10$092dAHGxMG9lf4xnA/cHg.fiWCNIDapYQtAP1BaZqf17dEMBDHt56";
+
+    const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    let fechasOpciones = [];
+    let turnosGlobales = [];
+
+    function actualizarMarcaTiempo() {
+        const ahora = new Date();
+        document.getElementById('updateTime').innerText = `🔄 Última actualización: Hoy a las ${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    function inicializarFechas() {
+        const selector = document.getElementById('fecha');
+        const headers = document.getElementById('tablaHeaders');
+        
+        for (let i = 0; i < 7; i++) {
+            let d = new Date();
+            d.setDate(d.getDate() + i);
+            let diaTexto = diasSemana[d.getDay()];
+            let fechaFormateada = `${diaTexto} ${d.getDate()}/${d.getMonth()+1}`;
+            fechasOpciones.push(fechaFormateada);
+
+            let opt = document.createElement('option');
+            opt.value = fechaFormateada;
+            opt.innerText = i === 0 ? `Hoy (${fechaFormateada})` : fechaFormateada;
+            selector.appendChild(opt);
+
+            let th = document.createElement('th');
+            th.innerText = fechaFormateada;
+            headers.appendChild(th);
+
+            document.getElementById('filaManana').innerHTML += `<td id="Mañana-${fechaFormateada}"><span class="estado libre">🟢 LIBRE</span></td>`;
+            document.getElementById('filaTarde').innerHTML += `<td id="Tarde-${fechaFormateada}"><span class="estado libre">🟢 LIBRE</span></td>`;
+            document.getElementById('filaNoche').innerHTML += `<td id="Noche-${fechaFormateada}"><span class="estado libre">🟢 LIBRE</span></td>`;
+        }
+    }
+
+    function cargarTabla() {
+        fetch(`https://jsonbin.io{BIN_ID}/latest`, {
+            headers: { 
+                "X-Master-Key": MASTER_KEY,
+                "X-Bin-Meta": "false"
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            // Manejar si los datos iniciales vienen como el objeto de prueba o arreglo vacío
+            if (data && !Array.isArray(data)) {
+                turnosGlobales = [];
+            } else {
+                turnosGlobales = data || [];
+            }
+            
+            // Vaciar la tabla primero a LIBRE
+            fechasOpciones.forEach(f => {
+                ['Mañana', 'Tarde', 'Noche'].forEach(t => {
+                    const el = document.getElementById(`${t}-${f}`);
+                    if(el) el.innerHTML = `<span class="estado libre">🟢 LIBRE</span>`;
+                });
+            });
+
+            // Pintar los turnos mapeados en la estructura
+            turnosGlobales.forEach(t => {
+                const celda = document.getElementById(`${t.turno}-${t.fecha}`);
+                if (celda) {
+                    celda.innerHTML = `<span class="estado cubierto">👤 ${t.persona}</span>`;
+                }
+            });
+            actualizarMarcaTiempo();
+        })
+        .catch(() => {
+            document.getElementById('updateTime').innerText = "⚠️ Error de lectura de datos";
+        });
+    }
+
+    function enviarDatos() {
+        const fecha = document.getElementById('fecha').value;
+        const turno = document.getElementById('horario').value;
+        const persona = document.getElementById('personal').value;
+        const btn = document.getElementById('btnConfirmar');
+
+        if (!persona) { alert("Por favor selecciona tu nombre."); return; }
+
+        btn.disabled = true;
+        btn.innerText = "Sincronizando base de datos...";
+
+        // Filtrar y eliminar si ya existía registro en esa coordenada para sobreescribir puro
+        turnosGlobales = turnosGlobales.filter(t => !(t.fecha === fecha && t.turno === turno));
+        
+        // Empujar el nuevo nodo al array
+        turnosGlobales.push({ fecha: fecha, turno: turno, persona: persona });
+
+        // Petición física PUT directa sobre el archivo JSON remoto
+        fetch(`https://jsonbin.io{BIN_ID}`, {
+            method: 'PUT',
+            headers: {
+                "Content-Type": "application/json",
+                "X-Master-Key": MASTER_KEY
+            },
+            body: JSON.stringify(turnosGlobales)
+        })
+        .then(() => {
+            alert("¡Turno guardado con éxito!");
+            cargarTabla();
+            btn.disabled = false;
+            btn.innerText = "Confirmar / Cambiar Turno";
+        })
+        .catch(() => {
+            alert("Falló el envío por red.");
+            btn.disabled = false;
+            btn.innerText = "Confirmar / Cambiar Turno";
+});
+}
+window.onload = function() {
+inicializarFechas();
+cargarTabla();
+setInterval(cargarTabla, 20000);
+};
