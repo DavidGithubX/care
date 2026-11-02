@@ -85,6 +85,7 @@
         <div class="timestamp" id="updateTime">Estableciendo comunicación...</div>
     </div>
 
+    <!-- Formulario -->
     <div class="card">
         <div class="form-grid">
             <div class="form-group">
@@ -116,6 +117,7 @@
         <button id="btnConfirmar" onclick="enviarDatos()">Confirmar / Cambiar Turno</button>
     </div>
 
+    <!-- Tabla -->
     <div class="card">
         <div class="table-responsive">
             <table>
@@ -135,7 +137,7 @@
 </div>
 
 <script>
-    // CONFIGURACIÓN DE TU BASE DE DATOS PROPIA
+    // CONTROL TOTAL DE CREDENCIALES
     const BIN_ID = "6ae817f9ffd5d160539e9260";
     const MASTER_KEY = "$2a$10$092dAHGxMG9lf4xnA/cHg.fiWCNIDapYQtAP1BaZqf17dEMBDHt56";
 
@@ -148,20 +150,23 @@
         document.getElementById('updateTime').innerText = `🔄 Última actualización: Hoy a las ${ahora.getHours().toString().padStart(2, '0')}:${ahora.getMinutes().toString().padStart(2, '0')}`;
     }
 
+    // Inicialización manual: El ciclo arranca siempre el Domingo actual
     function inicializarFechas() {
         const selector = document.getElementById('fecha');
         const headers = document.getElementById('tablaHeaders');
         
+        let d = new Date();
+        // Retrocedemos los días necesarios hasta llegar al Domingo de esta semana
+        d.setDate(d.getDate() - d.getDay()); 
+        
         for (let i = 0; i < 7; i++) {
-            let d = new Date();
-            d.setDate(d.getDate() + i);
             let diaTexto = diasSemana[d.getDay()];
             let fechaFormateada = `${diaTexto} ${d.getDate()}/${d.getMonth()+1}`;
             fechasOpciones.push(fechaFormateada);
 
             let opt = document.createElement('option');
             opt.value = fechaFormateada;
-            opt.innerText = i === 0 ? `Hoy (${fechaFormateada})` : fechaFormateada;
+            opt.innerText = i === 0 ? `Domingo (${fechaFormateada})` : fechaFormateada;
             selector.appendChild(opt);
 
             let th = document.createElement('th');
@@ -171,6 +176,8 @@
             document.getElementById('filaManana').innerHTML += `<td id="Mañana-${fechaFormateada}"><span class="estado libre">🟢 LIBRE</span></td>`;
             document.getElementById('filaTarde').innerHTML += `<td id="Tarde-${fechaFormateada}"><span class="estado libre">🟢 LIBRE</span></td>`;
             document.getElementById('filaNoche').innerHTML += `<td id="Noche-${fechaFormateada}"><span class="estado libre">🟢 LIBRE</span></td>`;
+            
+            d.setDate(d.getDate() + 1);
         }
     }
 
@@ -183,14 +190,14 @@
         })
         .then(res => res.json())
         .then(data => {
-            // Manejar si los datos iniciales vienen como el objeto de prueba o arreglo vacío
-            if (data && !Array.isArray(data)) {
+            // CONTROL DE SEGURIDAD: Rompe la estructura de objeto basura de JSONbin si no es una matriz pura []
+            if (!data || !Array.isArray(data)) {
                 turnosGlobales = [];
             } else {
-                turnosGlobales = data || [];
+                turnosGlobales = data;
             }
             
-            // Vaciar la tabla primero a LIBRE
+            // Forzar reseteo de la cuadrícula a LIBRE antes de mapear
             fechasOpciones.forEach(f => {
                 ['Mañana', 'Tarde', 'Noche'].forEach(t => {
                     const el = document.getElementById(`${t}-${f}`);
@@ -198,17 +205,19 @@
                 });
             });
 
-            // Pintar los turnos mapeados en la estructura
+            // Recorrer el vector de la base de datos e inyectar los nombres
             turnosGlobales.forEach(t => {
-                const celda = document.getElementById(`${t.turno}-${t.fecha}`);
-                if (celda) {
-                    celda.innerHTML = `<span class="estado cubierto">👤 ${t.persona}</span>`;
+                if (t && t.turno && t.fecha) {
+                    const celda = document.getElementById(`${t.turno}-${t.fecha}`);
+                    if (celda) {
+                        celda.innerHTML = `<span class="estado cubierto">👤 ${t.persona}</span>`;
+                    }
                 }
             });
             actualizarMarcaTiempo();
         })
         .catch(() => {
-            document.getElementById('updateTime').innerText = "⚠️ Error de lectura de datos";
+            document.getElementById('updateTime').innerText = "⚠️ Error de lectura en el canal remoto";
         });
     }
 
@@ -221,15 +230,15 @@
         if (!persona) { alert("Por favor selecciona tu nombre."); return; }
 
         btn.disabled = true;
-        btn.innerText = "Sincronizando base de datos...";
+        btn.innerText = "Escribiendo en disco duro remoto...";
 
-        // Filtrar y eliminar si ya existía registro en esa coordenada para sobreescribir puro
+        // Eliminar duplicados previos si se sobreescribe la misma coordenada
         turnosGlobales = turnosGlobales.filter(t => !(t.fecha === fecha && t.turno === turno));
         
-        // Empujar el nuevo nodo al array
+        // Empujar registro al array en memoria
         turnosGlobales.push({ fecha: fecha, turno: turno, persona: persona });
 
-        // Petición física PUT directa sobre el archivo JSON remoto
+        // Guardado físico inmediato
         fetch(`https://jsonbin.io{BIN_ID}`, {
             method: 'PUT',
             headers: {
@@ -238,20 +247,21 @@
             },
             body: JSON.stringify(turnosGlobales)
         })
-        .then(() => {
-            alert("¡Turno guardado con éxito!");
-            cargarTabla();
-            btn.disabled = false;
-            btn.innerText = "Confirmar / Cambiar Turno";
-        })
-        .catch(() => {
-            alert("Falló el envío por red.");
-            btn.disabled = false;
-            btn.innerText = "Confirmar / Cambiar Turno";
+.then(() => {
+alert("¡Turno coordinado con éxito!");
+cargarTabla();
+btn.disabled = false;
+btn.innerText = "Confirmar / Cambiar Turno";
+})
+.catch(() => {
+alert("Fallo la transmisión por red.");
+btn.disabled = false;
+btn.innerText = "Confirmar / Cambiar Turno";
 });
 }
 window.onload = function() {
 inicializarFechas();
 cargarTabla();
-setInterval(cargarTabla, 20000);
+// Escaneo cada 15 segundos para capturar actualizaciones familiares
+setInterval(cargarTabla, 15000);
 };
